@@ -8,7 +8,7 @@ extension QueryBuilder {
     /// - Returns: A single `Page` of the result set containing the requested items and page metadata.
     public func paginate(
         _ request: PageRequest
-    ) -> EventLoopFuture<Page<Model>> {
+    ) -> EventLoopFuture<Page<View>> {
         let trimmedRequest: PageRequest = {
             guard let pageSizeLimit = database.context.pageSizeLimit else {
                 return .init(page: Swift.max(request.page, 1), per: Swift.max(request.per, 1))

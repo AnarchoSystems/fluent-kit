@@ -1,9 +1,18 @@
-public protocol Model: AnyModel {
+public protocol Model: AnyModel, DbView where ViewBase == Self {
     associatedtype IDValue: Codable, Hashable
     var id: IDValue? { get set }
 }
 
 extension Model {
+    
+    public func injected(from base: Self) -> Self {
+        base
+    }
+    
+    public var customFields: [DatabaseQuery.Field] {
+        []
+    }
+    
     public static func query(on database: Database) -> QueryBuilder<Self> {
         .init(database: database)
     }

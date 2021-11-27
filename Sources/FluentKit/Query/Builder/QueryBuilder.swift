@@ -1,8 +1,16 @@
 import AsyncKit
 import NIO
 
-public final class QueryBuilder<Model>
-    where Model: FluentKit.Model
+
+extension QueryBuilder {
+    
+    public typealias Model = View.ViewBase
+    
+}
+
+
+public final class QueryBuilder<View>
+where View : DbView
 {
     public var query: DatabaseQuery
 
@@ -10,6 +18,7 @@ public final class QueryBuilder<Model>
     internal var includeDeleted: Bool
     internal var shouldForceDelete: Bool
     internal var models: [Schema.Type]
+    internal var prototype : View
     public var eagerLoaders: [AnyEagerLoader]
 
     public convenience init(database: Database) {
@@ -20,10 +29,11 @@ public final class QueryBuilder<Model>
         )
     }
 
-    private init(
+    internal init(
         query: DatabaseQuery,
         database: Database,
         models: [Schema.Type] = [],
+        prototype: View = View(),
         eagerLoaders: [AnyEagerLoader] = [],
         includeDeleted: Bool = false,
         shouldForceDelete: Bool = false
@@ -31,6 +41,7 @@ public final class QueryBuilder<Model>
         self.query = query
         self.database = database
         self.models = models
+        self.prototype = prototype
         self.eagerLoaders = eagerLoaders
         self.includeDeleted = includeDeleted
         self.shouldForceDelete = shouldForceDelete
@@ -43,11 +54,12 @@ public final class QueryBuilder<Model>
         }
     }
 
-    public func copy() -> QueryBuilder<Model> {
+    public func copy() -> Self {
         .init(
             query: self.query,
             database: self.database,
             models: self.models,
+            prototype: self.prototype,
             eagerLoaders: self.eagerLoaders,
             includeDeleted: self.includeDeleted,
             shouldForceDelete: self.shouldForceDelete
@@ -56,6 +68,10 @@ public final class QueryBuilder<Model>
 
     // MARK: Fields
     
+}
+
+extension QueryBuilder where View : FluentKit.Model {
+    
     @discardableResult
     public func fields<Joined>(for model: Joined.Type) -> Self 
         where Joined: Schema & Fields
@@ -63,6 +79,10 @@ public final class QueryBuilder<Model>
         self.addFields(for: Joined.self, to: &self.query)
         return self
     }
+    
+}
+
+extension QueryBuilder {
 
     internal func addFields(for model: (Schema & Fields).Type, to query: inout DatabaseQuery) {
         query.fields += model.keys.map { path in
@@ -144,8 +164,8 @@ public final class QueryBuilder<Model>
 
     // MARK: Fetch
 
-    public func chunk(max: Int, closure: @escaping ([Result<Model, Error>]) -> ()) -> EventLoopFuture<Void> {
-        var partial: [Result<Model, Error>] = []
+    public func chunk(max: Int, closure: @escaping ([Result<View, Error>]) -> ()) -> EventLoopFuture<Void> {
+        var partial: [Result<View, Error>] = []
         partial.reserveCapacity(max)
         return self.all { row in
             partial.append(row)
@@ -162,16 +182,20 @@ public final class QueryBuilder<Model>
         }
     }
 
-    public func first() -> EventLoopFuture<Model?> {
+    public func first() -> EventLoopFuture<View?> {
         return self.limit(1)
             .all()
             .map { $0.first }
     }
 
-    public func all<Field>(_ key: KeyPath<Model, Field>) -> EventLoopFuture<[Field.Value]>
+}
+
+extension QueryBuilder where View : FluentKit.Model {
+    
+    public func all<Field>(_ key: KeyPath<View.ViewBase, Field>) -> EventLoopFuture<[Field.Value]>
         where
             Field: QueryableProperty,
-            Field.Model == Model
+            Field.Model == View
     {
         let copy = self.copy()
         copy.query.fields = [.path(Model.path(for: key), schema: Model.schema)]
@@ -200,8 +224,13 @@ public final class QueryBuilder<Model>
         }
     }
 
-    public func all() -> EventLoopFuture<[Model]> {
-        var models: [Result<Model, Error>] = []
+}
+
+
+extension QueryBuilder {
+
+    public func all() -> EventLoopFuture<[View]> {
+        var models: [Result<View, Error>] = []
         return self.all { model in
             models.append(model)
         }.flatMapThrowing {
@@ -214,15 +243,16 @@ public final class QueryBuilder<Model>
         return self.run { _ in }
     }
 
-    public func all(_ onOutput: @escaping (Result<Model, Error>) -> ()) -> EventLoopFuture<Void> {
+    public func all(_ onOutput: @escaping (Result<View, Error>) -> ()) -> EventLoopFuture<Void> {
         var all: [Model] = []
 
         let done = self.run { output in
             onOutput(.init(catching: {
                 let model = Model()
                 try model.output(from: output.schema(Model.schema))
+                let view = try View().injected(from: model)
                 all.append(model)
-                return model
+                return view
             }))
         }
 
@@ -253,6 +283,12 @@ public final class QueryBuilder<Model>
         // make a copy of this query before mutating it
         // so that run can be called multiple times
         var query = self.query
+        
+        // If fields are not being manually selected,
+        // try getting them from the prototype
+        if query.fields.isEmpty {
+            query.fields = prototype.customFields
+        }
 
         // If fields are not being manually selected,
         // add fields from all models being queried.

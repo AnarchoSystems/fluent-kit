@@ -18,13 +18,19 @@ public extension QueryBuilder {
     
     // MARK: - Fetch
     
-    func chunk(max: Int, closure: @escaping ([Result<Model, Error>]) -> ()) async throws {
+    func chunk(max: Int, closure: @escaping ([Result<View, Error>]) -> ()) async throws {
         try await self.chunk(max: max, closure: closure).get()
     }
     
-    func first() async throws -> Model? {
+    func first() async throws -> View? {
         try await self.first().get()
     }
+    
+}
+
+
+@available(macOS 12, iOS 15, watchOS 8, tvOS 15, *)
+public extension QueryBuilder where View : FluentKit.Model {
     
     func all<Field>(_ key: KeyPath<Model, Field>) async throws -> [Field.Value]
     where
@@ -46,7 +52,12 @@ public extension QueryBuilder {
         try await self.all(joined, field).get()
     }
     
-    func all() async throws -> [Model] {
+}
+
+@available(macOS 12, iOS 15, watchOS 8, tvOS 15, *)
+public extension QueryBuilder {
+    
+    func all() async throws -> [View] {
         try await self.all().get()
     }
     
@@ -54,7 +65,7 @@ public extension QueryBuilder {
         try await self.run().get()
     }
     
-    func all(_ onOutput: @escaping (Result<Model, Error>) -> ()) async throws {
+    func all(_ onOutput: @escaping (Result<View, Error>) -> ()) async throws {
         try await self.all(onOutput).get()
     }
     
@@ -180,7 +191,7 @@ public extension QueryBuilder {
     // MARK: - Paginate
     func paginate(
         _ request: PageRequest
-    ) async throws -> Page<Model> {
+    ) async throws -> Page<View> {
         try await self.paginate(request).get()
     }
 }

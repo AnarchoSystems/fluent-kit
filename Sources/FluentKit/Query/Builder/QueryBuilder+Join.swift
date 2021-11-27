@@ -1,4 +1,4 @@
-extension QueryBuilder {
+extension QueryBuilder where View : FluentKit.Model {
     // MARK: Join
 
     @discardableResult
