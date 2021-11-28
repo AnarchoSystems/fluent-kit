@@ -2,12 +2,14 @@
 
 public protocol DbInjectable : DbView {}
 
+
 internal protocol _FieldBindingProtocol {
     
     var key : DatabaseQuery.Field {get}
     func inject(from any: Any)
     
 }
+
 
 @propertyWrapper
 public final class FieldBindingProperty<Base : FluentKit.Model, Value : QueryableProperty> : _FieldBindingProtocol {
@@ -95,6 +97,42 @@ public extension DbInjectable {
         searchFieldBindings{$0.inject(from: base)}
         return self
         
+    }
+    
+}
+
+
+@propertyWrapper
+public final class ArrayBindingProperty<Base : FluentKit.Model, ViewModel : DbView, Key : QueryableProperty> : _FieldBindingProtocol
+where Key.Value == [ViewModel.ViewBase] {
+    
+    public var wrappedValue : [ViewModel] {
+        guard let value = self.value else {
+            fatalError("Cannot access field before it is fetched: \(self.key)")
+        }
+        return value
+    }
+    
+    private let keyPath : KeyPath<Base, Key>
+    private var value : [ViewModel]?
+    
+    public init(_ keyPath: KeyPath<Base, Key>,
+                as type: ViewModel.Type) {
+        self.keyPath = keyPath
+    }
+    
+    internal var key: DatabaseQuery.Field {
+        .path(Base.path(for: keyPath),
+              schema: Base.schema)
+    }
+    
+    internal func inject(from any: Any) {
+        guard let models = (any as? Base)?[keyPath: keyPath].value else {
+            return
+        }
+        value = try? models.map {model in
+            try ViewModel().injected(from: model)
+        }
     }
     
 }

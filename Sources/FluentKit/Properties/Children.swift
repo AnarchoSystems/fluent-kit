@@ -209,7 +209,7 @@ private struct ChildrenEagerLoader<From, To>: EagerLoader
         case .required(let required):
             builder.filter(required.appending(path: \.$id) ~~ Set(ids))
         }
-        return builder.all().map {(children : [To]) in
+        return builder.all().map {(children : [To]) -> Void in
             for model in models {
                 let id = model[keyPath: self.relationKey].idValue!
                 model[keyPath: self.relationKey].value = children.filter { (child : To) in
