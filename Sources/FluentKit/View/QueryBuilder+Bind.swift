@@ -60,11 +60,19 @@ public extension QueryBuilder {
         
     }
     
+    func bind<NewView>(to type: NewView.Type) -> QueryBuilder<NewView>
+    where NewView : DbView,
+          NewView.ViewBase == View.ViewBase {
+              bind(to: .init())
+          }
+    
     func project<NewView>(onto prototype: NewView)
     -> QueryBuilder<ViewBinder<View.ViewBase, NewView>> {
-        
         bind(to: .init(prototype: prototype))
-        
+    }
+    
+    func project<NewView>(onto type: NewView.Type) -> QueryBuilder<ViewBinder<View.ViewBase, NewView>> {
+        project(onto: .init())
     }
     
     func bind<Base, Wrapped : Initializable, Property : QueryableProperty>(
